@@ -1,6 +1,6 @@
 /*! 
 (C) mohdumar, 2016
-
+v1
 file send structure:
 < 8 bytes file size >< 255 bytes file name  and subdir relative path>< 8 bytes file modification time >< 8 bytes creation time ><8bytes crc32> < file content >
 
