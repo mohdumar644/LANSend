@@ -24,6 +24,6 @@ TheGood@ahkforum for his AHKsock library, an implementation of Winsock.
 
 Download
 -------
-[Download Windows Binary - lansend.exe](https://github.com/mohdumar644/LANSend/releases/download/1.0/lansend.exe)
+[Download Windows Binary - lansend.exe](https://github.com/mohdumar644/LANSend/releases/download/v1-latest/lansend.exe)
 
  
