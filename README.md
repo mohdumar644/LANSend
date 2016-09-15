@@ -5,6 +5,7 @@ A simple LAN file sharing utility.
 
 Written in AutoHotkey.
 
+![screen](https://github.com/mohdumar644/LANSend/raw/master/images/lansend.png "Screenshot")
 
 Usage
 -------
@@ -24,3 +25,5 @@ TheGood@ahkforum for his AHKsock library, an implementation of Winsock.
 Download
 -------
 [Download Windows Binary - lansend.exe](https://github.com/mohdumar644/LANSend/releases/download/1.0/lansend.exe)
+
+ 
