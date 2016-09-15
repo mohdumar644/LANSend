@@ -107,11 +107,16 @@ Gui, Child:+OwnerParent -MinSize -MaxSize +ToolWindow -SysMenu
 Gui, Child:Add, Text,, Enter Remote IP: 
 Gui, Child:Add, Custom, ClassSysIPAddress32 r1 w140 hwndhIPControl
 Global sIPList
+addedIPs=
 	Loop, parse, sIPList, `n
 	{ 
 	StringSplit, iparr, A_LoopField,.
 	ipmask=%iparr1%.%iparr2%.0.0
-	Gui, Child:Add, Button,w140 gSetMask, Set Mask to %ipmask%
+	if !InStr(addedIPs,ipmask)
+	{
+		Gui, Child:Add, Button,w140 gSetMask, Set Mask to %ipmask%
+		addedIPs:=addedIPs "`n" ipmask
+	}
 	}
 Gui, Child:Add,Button,xm y+30 gConnectBtnPress w140 Default hwndhConnectIP, &Connect
 Gui, Child:Add,Button, gCancelBtnPress w140, &Wait for Peers... 
