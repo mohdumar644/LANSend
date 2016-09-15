@@ -39,8 +39,7 @@ uses:
 	
     ;Set up an error handler (this is optional)
     AHKsock_ErrorHandler("AHKsockErrors")
-	
-			
+	 
 	bufsize:=1048575
 	
 	sFile=%Download_Location%\FileTemp.dat
@@ -422,6 +421,20 @@ AddDialog(ptrText, bYou = True) {
     SendMessage, 0x0115, 7, 0,, ahk_id %htxtDialog% ;WM_VSCROLL
 }
 
+
+FileSizeUnit(fsizeInBytes,decimal=3)
+{ 
+if fsizeInBytes < 1024
+	return fsizeInBytes " Bytes"
+else if (fsizeInBytes < (1024**2))
+	return Round(fsizeInBytes/1024,decimal) " KB"
+else if (fsizeInBytes < (1024**3))
+	return Round(fsizeInBytes/1024**2,decimal) " MB"
+else
+	return Round(fsizeInBytes/1024**3,decimal) " GB"
+}
+
+
 Peer(sEvent, iSocket = 0, sName = 0, sAddr = 0, sPort = 0, ByRef bData = 0, bDataLength = 0) {
     Global iPeerSocket, bExiting, bSameMachine, bCantListen, WillReconnect
     Static iIgnoreDisconnect
@@ -440,6 +453,7 @@ Peer(sEvent, iSocket = 0, sName = 0, sAddr = 0, sPort = 0, ByRef bData = 0, bDat
 		WaitListen(0)
 		
         AddLine("Peer with IP " sAddr " connected!")	
+		SB_SetText("Connected to " sAddr )
 		
     If (i := AHKsock_GetNameInfo(sAddr,hostname)) {
         MsgBox 0x10, Error, % "AHKsock_GetNameInfo failed.`nReturn value = " i ".`nErrorLevel = " ErrorLevel
@@ -517,8 +531,8 @@ Peer(sEvent, iSocket = 0, sName = 0, sAddr = 0, sPort = 0, ByRef bData = 0, bDat
         
 		global WillReconnect:=0
         ;Update status
-		AddLine("Connected to " sName)  
-		
+		AddLine("Connected to " sName)  			
+		SB_SetText("Connected to " sName )
 				
 		
 		If (i := AHKsock_GetNameInfo(sName,hostname)) {
@@ -702,10 +716,9 @@ ReceivingFile:=1
 			iModTime := NumGet(bDataPointer + 8 + 255, 0, "int64")
 			iCrTime := NumGet(bDataPointer + 8 + 255 + 8, 0, "int64")
 			crc32server :=  StrGet(bDataPointer + 8 + 255 + 8 + 8, 8, "")
-            
-			iFileMB:=Round(iFileSize/1048576,3) 			
+              			
 			AddLine("File path/name: " fileNameRec)	
-			AddLine("File size: " iFileMB " MB")		
+			AddLine("File size: " FileSizeUnit(iFileSize))		
             
             ;Check if there is data after the 64-bit integer that we have to write to the file
             If (bDataLength = HeaderLength) {
@@ -761,7 +774,7 @@ ReceivingFile:=1
 			CurrentSeconds:=UnixEpoch()
 			if (CurrentSeconds>prevTime)
 			{
-				rate:=Round((iPointer - prevSize)/1048576,2)
+				rate:=iPointer - prevSize
 				;OutputDebug, % "======= calculated rate: " rate
 				;OutputDebug, % "======= calculated pointer: " iPointer
 				;GuiControl,Text,RateText, Rate: %rate% 
@@ -769,11 +782,11 @@ ReceivingFile:=1
 				{
 				if firstRateOutput
 				{
-					AddLine("Transfer Rate: " rate " MB/s")	 
+					AddLine("Transfer Rate: " FileSizeUnit(rate,1) "/s")	 
 					firstRateOutput:=0
 					}
 				else
-					replaceLine("Transfer Rate: " rate " MB/s")	
+					replaceLine("Transfer Rate: " FileSizeUnit(rate,1) "/s")	
 				}  
 				 
 				prevTime:=CurrentSeconds					
@@ -801,8 +814,16 @@ ReceivingFile:=1
 	
 	;create folders
 	Global Download_Location
-	SplitPath, fileNameRec, OutFileName, OutDir 
+	SplitPath, fileNameRec, OutFileName, OutDir,OutExtension, OutNameNoExt
 	FileCreateDir, %Download_Location%\%outdir%
+	wasRenamed:=0
+	While(FileExist(Download_Location "\" fileNameRec))
+	{
+		wasRenamed+=1
+		fileNameRec:=OutDir "\" OutNameNoExt " (" wasRenamed ")." OutExtension
+	}
+	if wasRenamed
+	Addline("A file with the same name already exists. Renaming received file to " fileNameRec)
 		    Filemove, %sFile%, %Download_Location%\%fileNameRec%,1
 			FileSetTime, Integer2Time(iModTime), %Download_Location%\%fileNameRec%, M
 			FileSetTime, Integer2Time(iCrTime), %Download_Location%\%fileNameRec%, C
@@ -843,90 +864,7 @@ ReceivingFile:=1
         GuiControl,, hwndStatusProg, % iPointer * 100 / iFileSize 
 }
 
-UnixEpoch()
-{
-T = %A_Now%
-T -= 1970,s
-return T
-}
 
-AHKsockErrors(iError, iSocket) {
-    AddLine("Error " iError " with error code = " ErrorLevel ((iSocket <> -1) ? " on socket " iSocket "." : "."))
-}
-
-CopyBinData(ptrSource, ptrDestination, iLength) {
-    If iLength ;Only do it if there's anything to copy
-        DllCall("RtlMoveMemory", "Ptr", ptrDestination, "Ptr", ptrSource, "UInt", iLength)
-}
-
-/*! TheGood
-    Append text to an Edit control
-    http://www.autohotkey.com/forum/viewtopic.php?t=56717
-*/
-InsertText(hEdit, ptrText, iPos = -1) {
-    
-    If (iPos = -1) {
-        SendMessage, 0x000E, 0, 0,, ahk_id %hEdit% ;WM_GETTEXTLENGTH
-        iPos := ErrorLevel
-    }
-    
-    SendMessage, 0x00B1, iPos, iPos,, ahk_id %hEdit% ;EM_SETSEL
-    SendMessage, 0x00C2, False, ptrText,, ahk_id %hEdit% ;EM_REPLACESEL
-}
-
-;Anchor by Titan, adapted by TheGood
-;http://www.autohotkey.com/forum/viewtopic.php?p=377395#377395
-Anchor(i, a = "", r = false) {
-	static c, cs = 12, cx = 255, cl = 0, g, gs = 8, gl = 0, gpi, gw, gh, z = 0, k = 0xffff, ptr
-	If z = 0
-		VarSetCapacity(g, gs * 99, 0), VarSetCapacity(c, cs * cx, 0), ptr := A_PtrSize ? "Ptr" : "UInt", z := true
-	If (!WinExist("ahk_id" . i)) {
-		GuiControlGet, t, Hwnd, %i%
-		If ErrorLevel = 0
-			i := t
-		Else ControlGet, i, Hwnd, , %i%
-	}
-	VarSetCapacity(gi, 68, 0), DllCall("GetWindowInfo", "UInt", gp := DllCall("GetParent", "UInt", i), ptr, &gi)
-		, giw := NumGet(gi, 28, "Int") - NumGet(gi, 20, "Int"), gih := NumGet(gi, 32, "Int") - NumGet(gi, 24, "Int")
-	If (gp != gpi) {
-		gpi := gp
-		Loop, %gl%
-			If (NumGet(g, cb := gs * (A_Index - 1)) == gp, "UInt") {
-				gw := NumGet(g, cb + 4, "Short"), gh := NumGet(g, cb + 6, "Short"), gf := 1
-				Break
-			}
-		If (!gf)
-			NumPut(gp, g, gl, "UInt"), NumPut(gw := giw, g, gl + 4, "Short"), NumPut(gh := gih, g, gl + 6, "Short"), gl += gs
-	}
-	ControlGetPos, dx, dy, dw, dh, , ahk_id %i%
-	Loop, %cl%
-		If (NumGet(c, cb := cs * (A_Index - 1), "UInt") == i) {
-			If a =
-			{
-				cf = 1
-				Break
-			}
-			giw -= gw, gih -= gh, as := 1, dx := NumGet(c, cb + 4, "Short"), dy := NumGet(c, cb + 6, "Short")
-				, cw := dw, dw := NumGet(c, cb + 8, "Short"), ch := dh, dh := NumGet(c, cb + 10, "Short")
-			Loop, Parse, a, xywh
-				If A_Index > 1
-					av := SubStr(a, as, 1), as += 1 + StrLen(A_LoopField)
-						, d%av% += (InStr("yh", av) ? gih : giw) * (A_LoopField + 0 ? A_LoopField : 1)
-			DllCall("SetWindowPos", "UInt", i, "UInt", 0, "Int", dx, "Int", dy
-				, "Int", InStr(a, "w") ? dw : cw, "Int", InStr(a, "h") ? dh : ch, "Int", 4)
-			If r != 0
-				DllCall("RedrawWindow", "UInt", i, "UInt", 0, "UInt", 0, "UInt", 0x0101) ; RDW_UPDATENOW | RDW_INVALIDATE
-			Return
-		}
-	If cf != 1
-		cb := cl, cl += cs
-	bx := NumGet(gi, 48, "UInt"), by := NumGet(gi, 16, "Int") - NumGet(gi, 8, "Int") - gih - NumGet(gi, 52, "UInt")
-	If cf = 1
-		dw -= giw - gw, dh -= gih - gh
-	NumPut(i, c, cb, "UInt"), NumPut(dx - bx, c, cb + 4, "Short"), NumPut(dy - by, c, cb + 6, "Short")
-		, NumPut(dw, c, cb + 8, "Short"), NumPut(dh, c, cb + 10, "Short")
-	Return, true
-}
 
 
  
@@ -994,7 +932,7 @@ FileSend(SendFolder=0)
 				FileGetSize, fsize, %sFile%
 				totalsize += fsize
 			}
-			AddLine("Total Size of Files to be Sent: " Round(totalsize/1048576,2) " MB")
+			AddLine("Total Size of Files to be Sent: " FileSizeUnit(totalsize))
 			
 			Global multifiles:=1  ;so set progress doesnt zero 
 			
@@ -1043,7 +981,7 @@ FileSend(SendFolder=0)
                 Return
             }
 					
-			AddLine("File Size: " Round(iFileSize/1048576,3) " MB")
+			AddLine("File Size: " FileSizeUnit(iFileSize))
         
 			AddLine("Calculating CRC32...")
 			crc32str:=LC_FileCRC32(sFile)	 
@@ -1257,7 +1195,90 @@ File_Close(hFile) {
  
 
  
- 
+UnixEpoch()
+{
+T = %A_Now%
+T -= 1970,s
+return T
+}
+
+AHKsockErrors(iError, iSocket) {
+    AddLine("Error " iError " with error code = " ErrorLevel ((iSocket <> -1) ? " on socket " iSocket "." : "."))
+}
+
+CopyBinData(ptrSource, ptrDestination, iLength) {
+    If iLength ;Only do it if there's anything to copy
+        DllCall("RtlMoveMemory", "Ptr", ptrDestination, "Ptr", ptrSource, "UInt", iLength)
+}
+
+/*! TheGood
+    Append text to an Edit control
+    http://www.autohotkey.com/forum/viewtopic.php?t=56717
+*/
+InsertText(hEdit, ptrText, iPos = -1) {
+    
+    If (iPos = -1) {
+        SendMessage, 0x000E, 0, 0,, ahk_id %hEdit% ;WM_GETTEXTLENGTH
+        iPos := ErrorLevel
+    }
+    
+    SendMessage, 0x00B1, iPos, iPos,, ahk_id %hEdit% ;EM_SETSEL
+    SendMessage, 0x00C2, False, ptrText,, ahk_id %hEdit% ;EM_REPLACESEL
+}
+
+;Anchor by Titan, adapted by TheGood
+;http://www.autohotkey.com/forum/viewtopic.php?p=377395#377395
+Anchor(i, a = "", r = false) {
+	static c, cs = 12, cx = 255, cl = 0, g, gs = 8, gl = 0, gpi, gw, gh, z = 0, k = 0xffff, ptr
+	If z = 0
+		VarSetCapacity(g, gs * 99, 0), VarSetCapacity(c, cs * cx, 0), ptr := A_PtrSize ? "Ptr" : "UInt", z := true
+	If (!WinExist("ahk_id" . i)) {
+		GuiControlGet, t, Hwnd, %i%
+		If ErrorLevel = 0
+			i := t
+		Else ControlGet, i, Hwnd, , %i%
+	}
+	VarSetCapacity(gi, 68, 0), DllCall("GetWindowInfo", "UInt", gp := DllCall("GetParent", "UInt", i), ptr, &gi)
+		, giw := NumGet(gi, 28, "Int") - NumGet(gi, 20, "Int"), gih := NumGet(gi, 32, "Int") - NumGet(gi, 24, "Int")
+	If (gp != gpi) {
+		gpi := gp
+		Loop, %gl%
+			If (NumGet(g, cb := gs * (A_Index - 1)) == gp, "UInt") {
+				gw := NumGet(g, cb + 4, "Short"), gh := NumGet(g, cb + 6, "Short"), gf := 1
+				Break
+			}
+		If (!gf)
+			NumPut(gp, g, gl, "UInt"), NumPut(gw := giw, g, gl + 4, "Short"), NumPut(gh := gih, g, gl + 6, "Short"), gl += gs
+	}
+	ControlGetPos, dx, dy, dw, dh, , ahk_id %i%
+	Loop, %cl%
+		If (NumGet(c, cb := cs * (A_Index - 1), "UInt") == i) {
+			If a =
+			{
+				cf = 1
+				Break
+			}
+			giw -= gw, gih -= gh, as := 1, dx := NumGet(c, cb + 4, "Short"), dy := NumGet(c, cb + 6, "Short")
+				, cw := dw, dw := NumGet(c, cb + 8, "Short"), ch := dh, dh := NumGet(c, cb + 10, "Short")
+			Loop, Parse, a, xywh
+				If A_Index > 1
+					av := SubStr(a, as, 1), as += 1 + StrLen(A_LoopField)
+						, d%av% += (InStr("yh", av) ? gih : giw) * (A_LoopField + 0 ? A_LoopField : 1)
+			DllCall("SetWindowPos", "UInt", i, "UInt", 0, "Int", dx, "Int", dy
+				, "Int", InStr(a, "w") ? dw : cw, "Int", InStr(a, "h") ? dh : ch, "Int", 4)
+			If r != 0
+				DllCall("RedrawWindow", "UInt", i, "UInt", 0, "UInt", 0, "UInt", 0x0101) ; RDW_UPDATENOW | RDW_INVALIDATE
+			Return
+		}
+	If cf != 1
+		cb := cl, cl += cs
+	bx := NumGet(gi, 48, "UInt"), by := NumGet(gi, 16, "Int") - NumGet(gi, 8, "Int") - gih - NumGet(gi, 52, "UInt")
+	If cf = 1
+		dw -= giw - gw, dh -= gih - gh
+	NumPut(i, c, cb, "UInt"), NumPut(dx - bx, c, cb + 4, "Short"), NumPut(dy - by, c, cb + 6, "Short")
+		, NumPut(dw, c, cb + 8, "Short"), NumPut(dh, c, cb + 10, "Short")
+	Return, true
+}
  
  
  
